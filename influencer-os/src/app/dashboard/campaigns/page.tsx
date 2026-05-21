@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,8 @@ type Campaign = {
 };
 
 export default function CampaignsPage() {
+  const router = useRouter(); // <-- Added the router
+  
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -75,11 +78,10 @@ export default function CampaignsPage() {
     }
   };
 
-  // Helper to color-code pipeline statuses
   const getStatusColor = (status: string) => {
     if (status === 'Completed') return 'bg-green-100 text-green-800';
     if (status === 'Shortlisted') return 'bg-zinc-100 text-zinc-800';
-    return 'bg-blue-100 text-blue-800'; // Default for mid-pipeline states
+    return 'bg-blue-100 text-blue-800';
   };
 
   return (
@@ -187,7 +189,11 @@ export default function CampaignsPage() {
               </tr>
             ) : (
               campaigns.map((campaign) => (
-                <tr key={campaign.id} className="hover:bg-zinc-50 cursor-pointer">
+                <tr 
+                  key={campaign.id} 
+                  onClick={() => router.push(`/dashboard/campaigns/${campaign.id}`)} // <-- Added the click event
+                  className="hover:bg-zinc-50 cursor-pointer transition-colors"
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900">{campaign.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">{campaign.client_brand || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">{campaign.platform || '-'}</td>
