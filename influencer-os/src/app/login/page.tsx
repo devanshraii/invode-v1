@@ -61,7 +61,7 @@ export default function AuthPage() {
         
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
-            Invode<span className="text-zinc-500">OS</span>
+            Invode<span className="text-zinc-500"> ~ CampaignOS</span>
           </h1>
           <p className="text-sm text-zinc-500 mt-2">
             {isLogin ? 'Log in to your workspace.' : 'Create your agency workspace.'}

@@ -56,7 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       
       {/* Mobile Top Bar */}
       <div className="md:hidden flex items-center justify-between bg-zinc-900 text-white p-4 sticky top-0 z-50 shadow-md">
-        <div className="font-bold text-lg tracking-tight">Invode<span className="text-zinc-400">OS</span></div>
+        <div className="font-bold text-lg tracking-tight">Campaign<span className="text-zinc-400">OS</span></div>
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 focus:outline-none"
@@ -74,7 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar Navigation */}
       <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-zinc-900 text-zinc-300 md:shrink-0 md:sticky md:top-0 md:h-screen z-40 flex flex-col transition-all shadow-xl`}>
         <div className="p-6 hidden md:block border-b border-zinc-800">
-          <div className="text-2xl font-bold text-white tracking-tight">Invode<span className="text-zinc-500">OS</span></div>
+          <div className="text-2xl font-bold text-white tracking-tight">Campaign<span className="text-zinc-500">OS</span></div>
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
