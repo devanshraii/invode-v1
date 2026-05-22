@@ -1,62 +1,72 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/library/supabase';
 
-// GET: Fetch all creators for the dashboard
-export async function GET() {
+// GET: Fetch all creators OR a single creator if ID is provided
+export async function GET(request: Request) {
   try {
-    // Using the standard client without strict cookie checks for rapid prototyping
-    const { data: creators, error } = await supabase
-      .from('creators')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const id = searchParams.get('id');
 
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (id) {
+      const { data, error } = await supabase.from('creators').select('*').eq('id', id).eq('user_id', userId).single();
+      if (error) throw error;
+      return NextResponse.json({ creator: data }, { status: 200 });
+    }
+
+    const { data: creators, error } = await supabase.from('creators').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (error) throw error;
-
     return NextResponse.json({ creators }, { status: 200 });
   } catch (error: any) {
-    console.error('Error fetching creators:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-// POST: Create a new creator in the CRM
+// POST: Create new creator
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    if (!body.name || !body.user_id) return NextResponse.json({ error: 'Name and User ID required' }, { status: 400 });
 
-    // Basic validation for required fields
-    if (!body.name) {
-      return NextResponse.json({ error: 'Creator name is required' }, { status: 400 });
-    }
-
-    // Insert the new creator directly into the database
-    const { data: newCreator, error } = await supabase
-      .from('creators')
-      .insert([
-        {
-          name: body.name,
-          social_handles: body.social_handles || null,
-          niche_category: body.niche_category || null,
-          phone_number: body.phone_number || null,
-          email: body.email || null,
-          city: body.city || null,
-          language: body.language || null,
-          follower_count: body.follower_count ? parseInt(body.follower_count) : null,
-          engagement_rate: body.engagement_rate ? parseFloat(body.engagement_rate) : null,
-          pricing: body.pricing ? parseFloat(body.pricing) : null,
-          manager_details: body.manager_details || null,
-          gst_status: body.gst_status || false,
-          notes: body.notes || null,
-        }
-      ])
-      .select()
-      .single();
-
+    const { data, error } = await supabase.from('creators').insert([body]).select().single();
     if (error) throw error;
-
-    return NextResponse.json({ creator: newCreator }, { status: 201 });
+    return NextResponse.json({ creator: data }, { status: 201 });
   } catch (error: any) {
-    console.error('Error creating creator:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// PUT: Update creator
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, user_id, ...updateData } = body;
+
+    if (!id || !user_id) return NextResponse.json({ error: 'ID and User ID required' }, { status: 400 });
+
+    const { data, error } = await supabase.from('creators').update(updateData).eq('id', id).eq('user_id', user_id).select().single();
+    if (error) throw error;
+    return NextResponse.json({ creator: data }, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// DELETE: Remove creator
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const userId = searchParams.get('userId');
+
+    if (!id || !userId) return NextResponse.json({ error: 'ID and User ID required' }, { status: 400 });
+
+    const { error } = await supabase.from('creators').delete().eq('id', id).eq('user_id', userId);
+    if (error) throw error;
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

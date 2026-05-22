@@ -1,20 +1,35 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/library/supabase';
 
-// GET: Fetch only campaigns belonging to the logged-in brand
+// GET: Fetch campaigns (either a specific one by ID, or all for the user)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId'); // The brand's ID
+    const userId = searchParams.get('userId'); 
+    const id = searchParams.get('id'); // Check if we are asking for a specific campaign
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized: User ID required' }, { status: 401 });
     }
 
+    // If an ID is provided, fetch just that specific campaign SECURELY
+    if (id) {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId) // <-- Ensure this campaign belongs to this brand
+        .single();
+        
+      if (error) throw error;
+      return NextResponse.json({ campaign: data }, { status: 200 });
+    }
+
+    // Otherwise, fetch all campaigns for this brand
     const { data: campaigns, error } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('user_id', userId) // <-- THE MAGIC FILTER: Only get this brand's stuff
+      .eq('user_id', userId) 
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -78,6 +93,26 @@ export async function PUT(request: Request) {
     return NextResponse.json({ campaign: data }, { status: 200 });
   } catch (error: any) {
     console.error('Error updating campaign:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// DELETE: Remove campaign
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const userId = searchParams.get('userId');
+
+    if (!id || !userId) return NextResponse.json({ error: 'ID and User ID required' }, { status: 400 });
+
+    // Note: Supabase ON DELETE CASCADE handles removing linked campaign_creators and approvals
+    const { error } = await supabase.from('campaigns').delete().eq('id', id).eq('user_id', userId);
+    
+    if (error) throw error;
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error: any) {
+    console.error('Error deleting campaign:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

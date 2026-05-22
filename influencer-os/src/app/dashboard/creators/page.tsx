@@ -1,9 +1,10 @@
 'use client';
-
+import { supabase } from '@/library/supabase';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useRouter } from 'next/navigation';
 
 type Creator = {
   id: string;
@@ -16,6 +17,7 @@ type Creator = {
 };
 
 export default function CreatorsPage() {
+  const router = useRouter();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -44,8 +46,15 @@ export default function CreatorsPage() {
 
   const fetchCreators = async () => {
     try {
-      const res = await fetch('/api/creators');
+      // 1. Get the logged-in brand's ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      // 2. Pass it securely to the API
+      const res = await fetch(`/api/creators?userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch creators');
+      
       const data = await res.json();
       setCreators(data.creators || []);
     } catch (err: any) {
@@ -59,16 +68,21 @@ export default function CreatorsPage() {
     e.preventDefault();
     setError('');
     
-    // Convert string inputs to proper types for the database
-    const payload = {
-      ...formData,
-      social_handles: formData.social_handles ? { primary: formData.social_handles } : null,
-      follower_count: formData.follower_count ? parseInt(formData.follower_count) : null,
-      engagement_rate: formData.engagement_rate ? parseFloat(formData.engagement_rate) : null,
-      pricing: formData.pricing ? parseFloat(formData.pricing) : null,
-    };
-
     try {
+      // 1. Get the logged-in brand's ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
+      // Convert string inputs to proper types
+      const payload = {
+        ...formData,
+        social_handles: formData.social_handles ? { primary: formData.social_handles } : null,
+        follower_count: formData.follower_count ? parseInt(formData.follower_count) : null,
+        engagement_rate: formData.engagement_rate ? parseFloat(formData.engagement_rate) : null,
+        pricing: formData.pricing ? parseFloat(formData.pricing) : null,
+        user_id: userId // 2. Send the stamp to the backend
+      };
+
       const res = await fetch('/api/creators', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,13 +94,14 @@ export default function CreatorsPage() {
         throw new Error(data.error || 'Failed to add creator');
       }
 
+      // Reset form on success
       setFormData({
         name: '', phone_number: '', email: '', social_handles: '', niche_category: '',
         city: '', language: '', follower_count: '', engagement_rate: '', pricing: '',
         manager_details: '', notes: '', gst_status: false
       });
       setIsAdding(false);
-      fetchCreators();
+      fetchCreators(); // Refresh the list
     } catch (err: any) {
       setError(err.message);
     }
@@ -216,7 +231,10 @@ export default function CreatorsPage() {
               <tr><td colSpan={5} className="px-6 py-4 text-center text-sm text-zinc-500">No creators added yet.</td></tr>
             ) : (
               creators.map((creator) => (
-                <tr key={creator.id} className="hover:bg-zinc-50">
+                <tr 
+                onClick={() => router.push('/dashboard/creators/' + creator.id)}
+                  
+                key={creator.id} className="hover:bg-zinc-50 cursor-pointer transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-zinc-900">{creator.name}</div>
                     <div className="text-xs text-zinc-500">{creator.niche_category || 'No niche'}</div>

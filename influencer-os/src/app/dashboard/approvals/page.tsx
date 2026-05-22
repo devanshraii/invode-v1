@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/library/supabase';
 
 type ApprovalItem = {
   id: string;
@@ -26,8 +27,15 @@ export default function ApprovalsPage() {
 
   const fetchApprovals = async () => {
     try {
-      const res = await fetch('/api/approvals');
+      // 1. Get the brand ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      // 2. Fetch securely
+      const res = await fetch(`/api/approvals?userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch approvals queue');
+      
       const data = await res.json();
       setApprovals(data.approvals || []);
     } catch (err: any) {
@@ -38,23 +46,26 @@ export default function ApprovalsPage() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: string) => {
-    // Optimistic UI update
-    setApprovals(approvals.map(app => 
-      app.id === id ? { ...app, status: newStatus } : app
-    ));
+    setApprovals(approvals.map(app => app.id === id ? { ...app, status: newStatus } : app));
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
       await fetch('/api/approvals', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus }),
+        body: JSON.stringify({ 
+          id, 
+          status: newStatus,
+          user_id: userId // 3. Pass ID to authorize the update
+        }),
       });
     } catch (err) {
       console.error(err);
-      fetchApprovals(); // Revert on failure
+      fetchApprovals(); 
     }
   };
-
   // WhatsApp Integration Logic
   const openWhatsApp = (phone: string, creatorName: string, campaignName: string, status: string) => {
     if (!phone) {

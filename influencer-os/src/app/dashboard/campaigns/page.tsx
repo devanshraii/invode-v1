@@ -1,5 +1,5 @@
 'use client';
-
+import { supabase } from '@/library/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -40,28 +40,42 @@ export default function CampaignsPage() {
   }, []);
 
   const fetchCampaigns = async () => {
-    try {
-      const res = await fetch('/api/campaigns');
-      if (!res.ok) throw new Error('Failed to fetch campaigns');
-      const data = await res.json();
-      setCampaigns(data.campaigns || []);
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  try {
+    // Grab the logged-in brand's session
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    if (!userId) return; // Stop if not logged in
+
+    // Pass the ID securely in the URL
+    const res = await fetch(`/api/campaigns?userId=${userId}`);
+    if (!res.ok) throw new Error('Failed to fetch campaigns');
+    
+    const data = await res.json();
+    setCampaigns(data.campaigns || []);
+  } catch (err: any) {
+    console.error(err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    try {
-      const res = await fetch('/api/campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+  e.preventDefault();
+  setError('');
+  
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    const res = await fetch('/api/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...formData,
+        user_id: userId // Send the stamp to the backend
+      }),
+    });
 
       if (!res.ok) {
         const data = await res.json();

@@ -1,5 +1,5 @@
 'use client';
-
+import { supabase } from '@/library/supabase';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -41,8 +41,15 @@ export default function CampaignDetailPage() {
 
   const fetchCampaignDetails = async () => {
     try {
-      const res = await fetch(`/api/campaigns?id=${campaignId}`);
+      // Grab the brand's ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      // Pass both the campaign ID and the user ID securely
+      const res = await fetch(`/api/campaigns?id=${campaignId}&userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch campaign details');
+      
       const data = await res.json();
       setCampaign(data.campaign);
     } catch (err) {
@@ -53,8 +60,16 @@ export default function CampaignDetailPage() {
   const fetchPipeline = async () => {
     try {
       setBoardError('');
-      const res = await fetch(`/api/campaign-creators?campaignId=${campaignId}`);
+      
+      // We also need to secure the pipeline fetch!
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      // Notice we are adding the userId here too
+      const res = await fetch(`/api/campaign-creators?campaignId=${campaignId}&userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch pipeline');
+      
       const data = await res.json();
       setPipeline(data.records || []);
     } catch (err: any) {
@@ -66,7 +81,15 @@ export default function CampaignDetailPage() {
 
   const fetchAvailableCreators = async () => {
     try {
-      const res = await fetch('/api/creators');
+      // 1. Grab the logged-in brand's session ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (!userId) return;
+
+      // 2. Pass the ID securely in the URL just like we did for campaigns
+      const res = await fetch(`/api/creators?userId=${userId}`);
+      
       if (res.ok) {
         const data = await res.json();
         setAvailableCreators(data.creators || []);
@@ -75,7 +98,6 @@ export default function CampaignDetailPage() {
       console.error(err);
     }
   };
-
   // Master Campaign Status Update
   const handleCampaignStatusChange = async (newStatus: string) => {
     if (!campaign) return;
@@ -127,17 +149,44 @@ export default function CampaignDetailPage() {
       setIsAddingCreator(false);
     }
   };
+  const handleDeleteCampaign = async () => {
+    if (!window.confirm('Delete this campaign and all its pipeline data? This cannot be undone.')) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      const res = await fetch(`/api/campaigns?id=${campaignId}&userId=${userId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      
+      // We must import useRouter from 'next/navigation' at the top to do this:
+      window.location.href = '/dashboard/campaigns'; 
+    } catch (err) {
+      alert('Error deleting campaign');
+    }
+  };
 
   const handleContentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingContent(true);
+    
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
       const res = await fetch('/api/approvals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaign_creator_id: activeRecordId, drive_link: contentForm.drive_link, caption: contentForm.caption, deliverable_type: contentForm.deliverable_type }),
+        body: JSON.stringify({
+          campaign_creator_id: activeRecordId,
+          drive_link: contentForm.drive_link,
+          caption: contentForm.caption,
+          deliverable_type: contentForm.deliverable_type,
+          user_id: userId // <-- Ensure the new submission gets the security stamp
+        }),
       });
+
       if (!res.ok) throw new Error('Failed to submit content');
+      
       alert('Content sent to Approval Queue!');
       handleStatusChange(activeRecordId, 'Content Drafted');
       setIsSubmitModalOpen(false);
@@ -165,6 +214,9 @@ export default function CampaignDetailPage() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={handleDeleteCampaign}>
+            Delete Campaign
+          </Button>
           <select
             className="border border-zinc-300 rounded-md py-1.5 px-3 text-sm focus:ring-zinc-900 font-medium bg-white text-zinc-700 shadow-sm"
             value={campaign?.status || 'Active'}
