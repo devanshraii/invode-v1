@@ -10,7 +10,7 @@ export default function LandingPage() {
         <div className="text-3xl font-bold tracking-tight"><span className="text-zinc-500">𝖨𝗇𝗏𝗈𝖽𝖾</span></div>
         <div className="space-x-4">
           <Link href="/dashboard/campaigns">
-            <Button variant="ghost" className="hidden sm:inline-flex">Brand Login</Button>
+            <Button variant="ghost" className="text-xl hidden sm:inline-flex">Brand Login</Button>
           </Link>
           <Link href="/dashboard/campaigns">
             <Button className="bg-zinc-900 hover:bg-zinc-800 text-white rounded-full px-6">
