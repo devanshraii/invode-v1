@@ -5,6 +5,7 @@ import { supabase } from '@/library/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useRouter } from 'next/navigation';
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([]);
@@ -12,6 +13,8 @@ export default function PaymentsPage() {
   const [creators, setCreators] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
     campaign_id: '',
@@ -183,6 +186,16 @@ export default function PaymentsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    {/* NEW: Document Button */}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => router.push(`/dashboard/payments/${payment.id}/invoice`)}
+                      className="h-8 text-xs hover:bg-zinc-100"
+                    >
+                      📄Document
+                    </Button>
+
                     {payment.status === 'Pending' ? (
                       <Button variant="outline" size="sm" onClick={() => markAsPaid(payment.id)} className="h-8 text-xs bg-zinc-900 text-white hover:bg-zinc-800">
                         Mark as Paid

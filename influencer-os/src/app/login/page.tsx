@@ -12,9 +12,14 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [accessCode, setAccessCode] = useState(''); // New state for the secret code
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // The secret code you will give to paying clients
+  // In a real app, put this in your .env.local file, but hardcoding is fine for MVP testing
+  const SECRET_INVITE_CODE = process.env.NEXT_PUBLIC_INVITE_CODE || 'INVODE-VIP-2026';
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +36,16 @@ export default function AuthPage() {
         });
         if (signInError) throw signInError;
         
-        // Success: Redirect to the vault
         router.push('/dashboard/campaigns');
       } else {
-        // --- SIGN UP FLOW ---
+        // --- SIGN UP FLOW (WITH BOUNCER) ---
+        
+        // 1. Check the access code before doing anything
+        if (accessCode !== SECRET_INVITE_CODE) {
+          throw new Error('Invalid or expired Workspace Invite Code.');
+        }
+
+        // 2. If code is correct, create the account
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -45,8 +56,9 @@ export default function AuthPage() {
         if (signUpError) throw signUpError;
         
         setSuccessMessage('Workspace created! You can now sign in with these credentials.');
-        setIsLogin(true); // Switch UI back to login mode
-        setPassword(''); // Clear password for safety
+        setIsLogin(true); 
+        setPassword(''); 
+        setAccessCode('');
       }
     } catch (err: any) {
       setError(err.message);
@@ -61,10 +73,10 @@ export default function AuthPage() {
         
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
-            Invode<span className="text-zinc-500"> ~ CampaignOS</span>
+            Invode<span className="text-zinc-500"></span>
           </h1>
           <p className="text-sm text-zinc-500 mt-2">
-            {isLogin ? 'Log in to your workspace.' : 'Create your agency workspace.'}
+            {isLogin ? 'Log in to your workspace.' : 'Create your brand workspace.'}
           </p>
         </div>
 
@@ -87,10 +99,9 @@ export default function AuthPage() {
               id="email" 
               type="email" 
               required 
-              placeholder="team@invode.com"
+              placeholder="team@yourbrand.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="focus:ring-zinc-900 focus:border-zinc-900"
             />
           </div>
           
@@ -103,9 +114,24 @@ export default function AuthPage() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="focus:ring-zinc-900 focus:border-zinc-900"
             />
           </div>
+
+          {/* ONLY SHOW THIS FIELD DURING SIGN UP */}
+          {!isLogin && (
+            <div className="space-y-2 p-4 bg-zinc-50 rounded-lg border border-zinc-200">
+              <Label htmlFor="accessCode" className="text-zinc-700">Workspace Invite Code</Label>
+              <Input 
+                id="accessCode" 
+                type="text" 
+                required 
+                placeholder="Enter code provided after payment"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+                className="bg-white"
+              />
+            </div>
+          )}
 
           <Button 
             type="submit" 
@@ -117,7 +143,7 @@ export default function AuthPage() {
         </form>
 
         <div className="mt-6 text-center text-sm text-zinc-600">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
+          {isLogin ? "Ready to join? " : "Already have an account? "}
           <button 
             type="button"
             onClick={() => {
@@ -127,7 +153,7 @@ export default function AuthPage() {
             }}
             className="font-semibold text-zinc-900 hover:underline focus:outline-none"
           >
-            {isLogin ? 'Sign Up' : 'Sign In'}
+            {isLogin ? 'Contact Sales' : 'Sign In'}
           </button>
         </div>
         
