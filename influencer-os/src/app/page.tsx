@@ -147,13 +147,13 @@ export default function LandingPage() {
             </div>
 
             {/* Feature 6 - COMING SOON */}
-            <div className="bg-zinc-900 rounded-2xl p-8 border border-zinc-800 shadow-xl relative overflow-hidden group">
-              <div className="absolute top-4 right-4 bg-zinc-800 text-zinc-300 text-xs font-bold px-3 py-1 rounded-full border border-zinc-700">
+            <div className="bg-zinc-50 rounded-2xl p-8 border border-zinc-200/60 hover:shadow-lg transition-shadow">
+              {/* <div className="absolute top-4 right-4 bg-zinc-800 text-zinc-300 text-xs font-bold px-3 py-1 rounded-full border border-zinc-700">
                 ⚡ Coming Soon
-              </div>
+              </div> */}
               <div className="text-3xl mb-4">📄</div>
-              <h3 className="text-xl font-bold text-white mb-3">Smart Contracts & Invoices</h3>
-              <p className="text-zinc-400 leading-relaxed text-sm">Auto-generate legal PDF contracts and payment invoices pre-filled with CRM data and campaign deliverables with a single click.</p>
+              <h3 className="text-xl font-bold text-zinc-900 mb-3">Smart Contracts & Invoices</h3>
+              <p className="text-zinc-600 leading-relaxed text-sm">Auto-generate legal PDF contracts and payment invoices pre-filled with CRM data and campaign deliverables with a single click.</p>
             </div>
 
           </div>
