@@ -174,6 +174,22 @@ export default function CampaignDetailPage() {
       alert('Error deleting campaign');
     }
   };
+  const handleCampaignStatusChange = async (newStatus: string) => {
+    // Optimistic UI update for instant visual feedback
+    setCampaign({ ...campaign, status: newStatus });
+    
+    try {
+      const res = await fetch('/api/campaigns', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: campaignId, status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+    } catch (err) {
+      alert('Failed to update campaign status');
+      fetchCampaignDetails(); // Revert back if the database fails
+    }
+  };
 
   // --- DRAG AND DROP HANDLERS ---
   const handleDragStart = (e: React.DragEvent, recordId: string) => {
@@ -212,15 +228,28 @@ export default function CampaignDetailPage() {
       <div className="flex items-center justify-between border-b border-zinc-200 pb-4 shrink-0">
         <div>
           <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">
-            {campaign.brand_name || 'Brand Campaign'}
+            {campaign.client_brand || 'Brand Campaign'}
           </div>
           <h1 className="text-3xl font-black text-zinc-900 tracking-tight">{campaign.name}</h1>
           <div className="flex items-center space-x-4 mt-2 text-sm text-zinc-500">
             <span>Budget: ₹{(campaign.budget || 0).toLocaleString()}</span>
             <span>•</span>
-            <span className={`font-medium ${campaign.status === 'Active' ? 'text-green-600' : 'text-zinc-500'}`}>
-              {campaign.status}
-            </span>
+            
+            {/* INLINE EDITABLE CAMPAIGN STATUS DROPDOWN */}
+            <select
+              className={`font-medium outline-none cursor-pointer bg-transparent border-b border-dashed border-zinc-300 pb-0.5 hover:border-zinc-500 transition-colors appearance-none pr-4 relative
+                ${campaign.status === 'Active' ? 'text-green-600' : 
+                  campaign.status === 'Completed' ? 'text-blue-600' : 'text-zinc-500'}`}
+              value={campaign.status}
+              onChange={(e) => handleCampaignStatusChange(e.target.value)}
+              style={{ backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right center', backgroundSize: '12px' }}
+            >
+              <option value="Draft" className="text-zinc-900">Draft</option>
+              <option value="Active" className="text-zinc-900">Active</option>
+              <option value="Paused" className="text-zinc-900">Paused</option>
+              <option value="Completed" className="text-zinc-900">Completed</option>
+            </select>
+            
           </div>
         </div>
         
