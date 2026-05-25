@@ -254,6 +254,13 @@ export default function CampaignDetailPage() {
         </div>
         
         <div className="flex items-center space-x-3">
+          <Button 
+            variant="outline" 
+            onClick={() => router.push(`/dashboard/campaigns/${campaignId}/edit`)}
+            className="hover:bg-zinc-100"
+          >
+            ⚙️ Edit Settings
+          </Button>
           <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={handleDeleteCampaign}>
             Delete Campaign
           </Button>

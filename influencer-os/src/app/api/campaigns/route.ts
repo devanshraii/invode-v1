@@ -71,28 +71,34 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT: Update Campaign Master Status
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, status } = body;
+    const { id, name, client_brand, budget, status } = body;
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'Campaign ID and status are required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Campaign ID is required' }, { status: 400 });
     }
+
+    // Build the update payload dynamically based on what was sent
+    const updates: any = {};
+    if (name !== undefined) updates.name = name;
+    if (client_brand !== undefined) updates.client_brand = client_brand;
+    if (budget !== undefined) updates.budget = Number(budget);
+    if (status !== undefined) updates.status = status;
 
     const { data, error } = await supabase
       .from('campaigns')
-      .update({ status })
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
 
-    return NextResponse.json({ campaign: data }, { status: 200 });
+    return NextResponse.json({ message: 'Campaign updated successfully', campaign: data }, { status: 200 });
   } catch (error: any) {
-    console.error('Error updating campaign:', error);
+    console.error('Update Campaign Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
