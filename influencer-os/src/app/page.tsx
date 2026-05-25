@@ -85,7 +85,7 @@ export default function LandingPage() {
             <div className="w-3 h-3 rounded-full bg-red-400"></div>
             <div className="w-3 h-3 rounded-full bg-amber-400"></div>
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
-            <div className="ml-4 text-xs font-medium text-zinc-400 flex-1 text-center pr-12">invode.com/dashboard</div>
+            <div className="ml-4 text-xs font-medium text-zinc-400 flex-1 text-center pr-12">Campaign Dashboard</div>
           </div>
           {/* Image Container */}
           <div className="bg-zinc-50 rounded-b-xl overflow-hidden flex items-center justify-center relative">

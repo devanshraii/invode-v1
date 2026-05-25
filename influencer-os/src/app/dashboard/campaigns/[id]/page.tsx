@@ -276,8 +276,8 @@ export default function CampaignDetailPage() {
         </div>
 
         {/* Scrollable Columns */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden pb-6 -mx-4 px-4 sm:-mx-8 sm:px-8 snap-x">
-          <div className="flex gap-4 h-full min-h-[500px]">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden -mx-4 px-4 sm:-mx-8 sm:px-8 snap-x">
+          <div className="flex gap-4 h-full">
             
             {PIPELINE_STAGES.map((stage) => {
               const stageRecords = pipeline.filter(p => p.status === stage);
@@ -289,12 +289,12 @@ export default function CampaignDetailPage() {
                   key={stage}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, stage)}
-                  className={`min-w-[320px] max-w-[320px] flex flex-col rounded-xl border snap-center transition-all h-full
+                  className={`min-w-[320px] max-w-[320px] flex flex-col rounded-xl border snap-center transition-all h-full max-h-full overflow-hidden
                     ${draggedRecordId ? 'border-dashed border-zinc-300 bg-zinc-50/80' : 'border-zinc-200 bg-zinc-50/50'}
                   `}
                 >
                   {/* Column Header with Counter */}
-                  <div className="p-3.5 border-b border-zinc-200/60 flex items-center justify-between sticky top-0 bg-zinc-100/80 backdrop-blur-md rounded-t-xl z-10">
+                  <div className="p-3.5 border-b border-zinc-200/60 flex items-center justify-between sticky top-0 bg-zinc-100/80 backdrop-blur-md rounded-t-xl z-10 shrink-0">
                     <h3 className="font-semibold text-zinc-800 text-sm tracking-tight">{stage}</h3>
                     <span className="bg-white border border-zinc-200 text-zinc-600 text-xs font-bold px-2.5 py-0.5 rounded-full shadow-sm">
                       {stageRecords.length}
@@ -302,7 +302,7 @@ export default function CampaignDetailPage() {
                   </div>
 
                   {/* Column Drop Zone */}
-                  <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+                  <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-0">
                     {stageRecords.map((record) => (
                       <div 
                         key={record.id}

@@ -21,7 +21,8 @@ export async function GET(request: Request) {
           id,
           name,
           niche_category,
-          follower_count
+          follower_count,
+          pricing
         )
       `)
       .eq('campaign_id', campaignId);
