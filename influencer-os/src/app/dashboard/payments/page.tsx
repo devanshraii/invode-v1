@@ -24,6 +24,13 @@ export default function PaymentsPage() {
     notes: ''
   });
 
+  // --- Searchable Dropdown States ---
+  const [campaignSearch, setCampaignSearch] = useState('');
+  const [showCampaignDropdown, setShowCampaignDropdown] = useState(false);
+  
+  const [creatorSearch, setCreatorSearch] = useState('');
+  const [showCreatorDropdown, setShowCreatorDropdown] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -34,7 +41,6 @@ export default function PaymentsPage() {
       const userId = session?.user?.id;
       if (!userId) return;
 
-      // Fetch all required data securely in parallel
       const [payRes, campRes, createRes] = await Promise.all([
         fetch(`/api/payments?userId=${userId}`),
         fetch(`/api/campaigns?userId=${userId}`),
@@ -53,6 +59,13 @@ export default function PaymentsPage() {
 
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Safety check ensuring they actually clicked an option, not just typed text
+    if (!formData.campaign_id || !formData.creator_id) {
+      alert('Please select a valid Campaign and Creator from the dropdown list.');
+      return;
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
@@ -65,7 +78,10 @@ export default function PaymentsPage() {
 
       if (!res.ok) throw new Error('Failed to log payment');
       
+      // Reset everything
       setFormData({ campaign_id: '', creator_id: '', amount: '', due_date: '', notes: '' });
+      setCampaignSearch('');
+      setCreatorSearch('');
       setIsAdding(false);
       fetchData();
     } catch (err) {
@@ -89,6 +105,16 @@ export default function PaymentsPage() {
     }
   };
 
+  // --- Filtering Logic ---
+  const filteredCampaigns = campaigns.filter(c => 
+    c.name.toLowerCase().includes(campaignSearch.toLowerCase())
+  );
+
+  const filteredCreators = creators.filter(c => {
+    const search = creatorSearch.toLowerCase();
+    return c.name?.toLowerCase().includes(search) || c.niche_category?.toLowerCase().includes(search);
+  });
+
   // Calculate Metrics
   const totalPending = payments.filter(p => p.status === 'Pending').reduce((sum, p) => sum + Number(p.amount), 0);
   const totalPaid = payments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + Number(p.amount), 0);
@@ -102,7 +128,12 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-semibold text-zinc-900">Payments & Ledger</h1>
           <p className="text-sm text-zinc-500">Track pending fees and completed payouts.</p>
         </div>
-        <Button onClick={() => setIsAdding(!isAdding)}>
+        <Button onClick={() => {
+          setIsAdding(!isAdding);
+          setCampaignSearch('');
+          setCreatorSearch('');
+          setFormData({ campaign_id: '', creator_id: '', amount: '', due_date: '', notes: '' });
+        }}>
           {isAdding ? 'Cancel' : '+ Log Payment'}
         </Button>
       </div>
@@ -124,32 +155,101 @@ export default function PaymentsPage() {
         <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Log New Pending Payment</h2>
           <form onSubmit={handleAddPayment} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            
+            {/* Custom Searchable Campaign Dropdown */}
+            <div className="space-y-2 relative">
               <Label>Campaign *</Label>
-              <select required className="w-full border border-zinc-300 rounded-md p-2 text-sm focus:ring-zinc-900" value={formData.campaign_id} onChange={e => setFormData({...formData, campaign_id: e.target.value})}>
-                <option value="" disabled>Select Campaign</option>
-                {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <Input 
+                required={!formData.campaign_id}
+                placeholder="Search campaign..."
+                value={campaignSearch}
+                onChange={(e) => {
+                  setCampaignSearch(e.target.value);
+                  setShowCampaignDropdown(true);
+                  if (formData.campaign_id) setFormData({...formData, campaign_id: ''}); // Clear actual selection if they type
+                }}
+                onFocus={() => setShowCampaignDropdown(true)}
+                onBlur={() => setTimeout(() => setShowCampaignDropdown(false), 200)} // Delay hides so onMouseDown can fire
+              />
+              {showCampaignDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {filteredCampaigns.length === 0 ? (
+                    <div className="p-3 text-sm text-zinc-500">No campaigns found.</div>
+                  ) : (
+                    filteredCampaigns.map(c => (
+                      <div 
+                        key={c.id}
+                        onMouseDown={() => {
+                          setFormData({...formData, campaign_id: c.id});
+                          setCampaignSearch(c.name);
+                          setShowCampaignDropdown(false);
+                        }}
+                        className="p-3 text-sm hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-0"
+                      >
+                        {c.name}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
+
+            {/* Custom Searchable Creator Dropdown */}
+            <div className="space-y-2 relative">
               <Label>Creator *</Label>
-              <select required className="w-full border border-zinc-300 rounded-md p-2 text-sm focus:ring-zinc-900" value={formData.creator_id} onChange={e => setFormData({...formData, creator_id: e.target.value})}>
-                <option value="" disabled>Select Creator</option>
-                {creators.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <Input 
+                required={!formData.creator_id}
+                placeholder="Search creator by name or niche..."
+                value={creatorSearch}
+                onChange={(e) => {
+                  setCreatorSearch(e.target.value);
+                  setShowCreatorDropdown(true);
+                  if (formData.creator_id) setFormData({...formData, creator_id: ''}); 
+                }}
+                onFocus={() => setShowCreatorDropdown(true)}
+                onBlur={() => setTimeout(() => setShowCreatorDropdown(false), 200)}
+              />
+              {showCreatorDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {filteredCreators.length === 0 ? (
+                    <div className="p-3 text-sm text-zinc-500">No creators found.</div>
+                  ) : (
+                    filteredCreators.map(c => (
+                      <div 
+                        key={c.id}
+                        onMouseDown={() => {
+                          setFormData({...formData, creator_id: c.id});
+                          setCreatorSearch(c.name);
+                          setShowCreatorDropdown(false);
+                        }}
+                        className="p-3 text-sm hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-0 flex justify-between items-center"
+                      >
+                        <div>
+                          <div className="font-medium text-zinc-900">{c.name}</div>
+                          <div className="text-xs text-zinc-500">{c.niche_category || 'General'}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>Amount (₹) *</Label>
               <Input required type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="e.g. 15000" />
             </div>
+            
             <div className="space-y-2">
               <Label>Due Date</Label>
               <Input type="date" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} />
             </div>
+            
             <div className="md:col-span-2 space-y-2">
               <Label>Internal Notes</Label>
               <Input value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="e.g. 50% Advance for Diwali Video" />
             </div>
+            
             <div className="md:col-span-2 pt-2">
               <Button type="submit">Save to Ledger</Button>
             </div>
@@ -185,15 +285,14 @@ export default function PaymentsPage() {
                       {payment.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                    {/* NEW: Document Button */}
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => router.push(`/dashboard/payments/${payment.id}/invoice`)}
                       className="h-8 text-xs hover:bg-zinc-100"
                     >
-                      📄Document
+                      📄 Document
                     </Button>
 
                     {payment.status === 'Pending' ? (
@@ -201,7 +300,7 @@ export default function PaymentsPage() {
                         Mark as Paid
                       </Button>
                     ) : (
-                      <span className="text-zinc-400">Completed</span>
+                      <span className="text-zinc-400 inline-block w-20 text-center">Completed</span>
                     )}
                   </td>
                 </tr>

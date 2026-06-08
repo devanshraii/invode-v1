@@ -142,16 +142,53 @@ export default function CreatorDetailPage() {
       ) : (
         <form onSubmit={handleUpdate} className="bg-white rounded-lg border border-zinc-200 shadow-sm p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Existing Core Info */}
             <div className="space-y-2"><Label>Name *</Label><Input required value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone_number || ''} onChange={e => setFormData({...formData, phone_number: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Email</Label><Input value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
             <div className="space-y-2"><Label>Social Handle</Label><Input value={formData.social_handles || ''} onChange={e => setFormData({...formData, social_handles: e.target.value})} /></div>
+            <div className="space-y-2"><Label>Phone</Label><Input type="tel" value={formData.phone_number || ''} onChange={e => setFormData({...formData, phone_number: e.target.value})} /></div>
+            <div className="space-y-2"><Label>Email</Label><Input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+            
+            {/* Missing Info added back */}
             <div className="space-y-2"><Label>Niche</Label><Input value={formData.niche_category || ''} onChange={e => setFormData({...formData, niche_category: e.target.value})} /></div>
+            <div className="space-y-2"><Label>City</Label><Input value={formData.city || ''} onChange={e => setFormData({...formData, city: e.target.value})} /></div>
+            <div className="space-y-2"><Label>Primary Language</Label><Input value={formData.language || ''} onChange={e => setFormData({...formData, language: e.target.value})} /></div>
+            <div className="space-y-2"><Label>Manager Details</Label><Input value={formData.manager_details || ''} onChange={e => setFormData({...formData, manager_details: e.target.value})} /></div>
+            
+            {/* Metrics & Pricing */}
             <div className="space-y-2"><Label>Followers</Label><Input type="number" value={formData.follower_count || ''} onChange={e => setFormData({...formData, follower_count: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Pricing (₹)</Label><Input type="number" value={formData.pricing || ''} onChange={e => setFormData({...formData, pricing: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Notes</Label><Input value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2"><Label>Eng. Rate (%)</Label><Input type="number" step="0.1" value={formData.engagement_rate || ''} onChange={e => setFormData({...formData, engagement_rate: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Pricing (₹)</Label><Input type="number" value={formData.pricing || ''} onChange={e => setFormData({...formData, pricing: e.target.value})} /></div>
+            </div>
+            
           </div>
-          <Button type="submit" className="w-full">Save Changes</Button>
+
+          {/* Full Width Elements */}
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <textarea 
+              className="w-full border border-zinc-200 rounded-md p-3 text-sm focus:ring-zinc-900 outline-none resize-none h-20" 
+              placeholder="Past performance, address, brand preferences..."
+              value={formData.notes || ''} 
+              onChange={e => setFormData({...formData, notes: e.target.value})} 
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <input 
+              type="checkbox" 
+              id="gst_status" 
+              className="rounded border-zinc-300 w-4 h-4 text-zinc-900"
+              checked={formData.gst_status || false} 
+              onChange={e => setFormData({...formData, gst_status: e.target.checked})} 
+            />
+            <Label htmlFor="gst_status" className="font-normal cursor-pointer">Creator is GST Registered</Label>
+          </div>
+
+          <Button type="submit" className="w-full bg-zinc-900 text-white hover:bg-zinc-800">
+            Save Changes
+          </Button>
         </form>
       )}
     </div>

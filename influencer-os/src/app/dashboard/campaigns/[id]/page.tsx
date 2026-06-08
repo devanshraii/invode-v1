@@ -28,6 +28,7 @@ export default function CampaignDetailPage() {
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCreatorId, setSelectedCreatorId] = useState('');
+  const [creatorSearchTerm, setCreatorSearchTerm] = useState(''); // <-- NEW: Search state
   
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [activeRecordId, setActiveRecordId] = useState('');
@@ -106,6 +107,7 @@ export default function CampaignDetailPage() {
       
       setIsAddModalOpen(false);
       setSelectedCreatorId('');
+      setCreatorSearchTerm(''); // Reset search
       fetchPipeline();
     } catch (err: any) {
       alert(err.message);
@@ -174,6 +176,7 @@ export default function CampaignDetailPage() {
       alert('Error deleting campaign');
     }
   };
+
   const handleCampaignStatusChange = async (newStatus: string) => {
     // Optimistic UI update for instant visual feedback
     setCampaign({ ...campaign, status: newStatus });
@@ -217,6 +220,14 @@ export default function CampaignDetailPage() {
       setDraggedRecordId(null);
     }
   };
+
+  // --- FILTER LOGIC FOR MODAL ---
+  const filteredAvailableCreators = availableCreators.filter(c => {
+    const searchLower = creatorSearchTerm.toLowerCase();
+    const nameMatch = c.name?.toLowerCase().includes(searchLower);
+    const nicheMatch = c.niche_category?.toLowerCase().includes(searchLower);
+    return nameMatch || nicheMatch;
+  });
 
   if (isLoading) return <div className="p-8 text-zinc-500 font-medium">Loading workspace...</div>;
   if (!campaign) return <div className="p-8 text-red-500 font-medium">Campaign not found.</div>;
@@ -372,30 +383,82 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* --- MODALS --- */}
-      {/* Add Creator Modal */}
+      {/* UPGRADED: Searchable Add Creator Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-zinc-200">
-            <h2 className="text-xl font-bold mb-4 text-zinc-900">Add Creator to Pipeline</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Select from CRM</label>
-                <select 
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-zinc-200 flex flex-col max-h-[90vh]">
+            <h2 className="text-xl font-bold mb-4 text-zinc-900 shrink-0">Add Creator to Pipeline</h2>
+            
+            <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+              
+              {/* Search Bar */}
+              <div className="shrink-0">
+                <input 
+                  type="text"
+                  placeholder="Search by name or niche..."
                   className="w-full border border-zinc-300 rounded-lg p-2.5 text-sm focus:ring-zinc-900 focus:border-zinc-900 outline-none"
-                  value={selectedCreatorId}
-                  onChange={(e) => setSelectedCreatorId(e.target.value)}
-                >
-                  <option value="" disabled>Select a creator...</option>
-                  {availableCreators.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} - {c.niche_category}</option>
-                  ))}
-                </select>
+                  value={creatorSearchTerm}
+                  onChange={(e) => setCreatorSearchTerm(e.target.value)}
+                  autoFocus
+                />
               </div>
-              <div className="flex space-x-3 pt-2">
-                <Button onClick={handleAddCreator} className="flex-1 bg-zinc-900 text-white hover:bg-zinc-800">Add to Shortlist</Button>
-                <Button variant="outline" onClick={() => setIsAddModalOpen(false)} className="flex-1">Cancel</Button>
+
+              {/* Scrollable Creator List */}
+              <div className="flex-1 overflow-y-auto border border-zinc-200 rounded-lg bg-zinc-50/50 min-h-[200px] max-h-[350px]">
+                {filteredAvailableCreators.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-zinc-500">
+                    No creators found matching "{creatorSearchTerm}"
+                  </div>
+                ) : (
+                  filteredAvailableCreators.map(c => (
+                    <div 
+                      key={c.id}
+                      onClick={() => setSelectedCreatorId(c.id)}
+                      className={`p-3 border-b border-zinc-100 last:border-0 cursor-pointer transition-all flex items-center justify-between
+                        ${selectedCreatorId === c.id 
+                          ? 'bg-zinc-100 border-l-4 border-l-zinc-900' 
+                          : 'bg-white hover:bg-zinc-50 border-l-4 border-l-transparent'}
+                      `}
+                    >
+                      <div>
+                        <div className={`font-medium text-sm ${selectedCreatorId === c.id ? 'text-zinc-900' : 'text-zinc-700'}`}>
+                          {c.name}
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-0.5">
+                          {c.niche_category || 'General'}
+                        </div>
+                      </div>
+                      <div className="text-xs font-medium text-zinc-600 bg-zinc-100 px-2 py-1 rounded">
+                        ₹{(c.pricing || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex space-x-3 pt-2 shrink-0">
+                <Button 
+                  onClick={handleAddCreator} 
+                  disabled={!selectedCreatorId}
+                  className="flex-1 bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  Add to Shortlist
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    setCreatorSearchTerm(''); 
+                    setSelectedCreatorId(''); 
+                  }} 
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
               </div>
             </div>
+            
           </div>
         </div>
       )}
