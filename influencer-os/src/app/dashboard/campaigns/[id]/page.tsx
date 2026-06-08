@@ -19,16 +19,18 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<any>(null);
   const [pipeline, setPipeline] = useState<any[]>([]);
   const [availableCreators, setAvailableCreators] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [boardError, setBoardError] = useState('');
   
   // Drag & Drop State
   const [draggedRecordId, setDraggedRecordId] = useState<string | null>(null);
 
-  // Modal States
+  // Modal & Drawer States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCreatorId, setSelectedCreatorId] = useState('');
-  const [creatorSearchTerm, setCreatorSearchTerm] = useState(''); // <-- NEW: Search state
+  const [creatorSearchTerm, setCreatorSearchTerm] = useState(''); 
+  const [isActivitySidebarOpen, setIsActivitySidebarOpen] = useState(false); // <-- NEW: Sidebar State
   
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [activeRecordId, setActiveRecordId] = useState('');
@@ -41,10 +43,11 @@ export default function CampaignDetailPage() {
       fetchCampaignDetails();
       fetchPipeline();
       fetchAvailableCreators();
+      fetchActivityLogs();
     }
   }, [campaignId]);
 
-  // --- FETCHERS (Securely stamped with userId) ---
+  // --- FETCHERS ---
   const fetchCampaignDetails = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -94,6 +97,39 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const fetchActivityLogs = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const res = await fetch(`/api/activity?campaignId=${campaignId}&userId=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setActivityLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const logActivity = async (action_type: string, details: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      await fetch('/api/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: campaignId, user_id: userId, action_type, details }),
+      });
+      fetchActivityLogs(); 
+    } catch (err) {
+      console.error('Failed to log activity', err);
+    }
+  };
+
   // --- HANDLERS ---
   const handleAddCreator = async () => {
     if (!selectedCreatorId) return;
@@ -105,9 +141,12 @@ export default function CampaignDetailPage() {
       });
       if (!res.ok) throw new Error('Failed to add creator');
       
+      const creatorName = availableCreators.find(c => c.id === selectedCreatorId)?.name || 'A creator';
+      await logActivity('Creator Added', `Added ${creatorName} to the Shortlist.`);
+
       setIsAddModalOpen(false);
       setSelectedCreatorId('');
-      setCreatorSearchTerm(''); // Reset search
+      setCreatorSearchTerm(''); 
       fetchPipeline();
     } catch (err: any) {
       alert(err.message);
@@ -115,7 +154,9 @@ export default function CampaignDetailPage() {
   };
 
   const handleStatusChange = async (recordId: string, newStatus: string) => {
-    // Optimistic UI update for instant feedback
+    const creatorRecord = pipeline.find(p => p.id === recordId);
+    const creatorName = creatorRecord?.creators?.name || 'Unknown Creator';
+
     setPipeline(pipeline.map(p => p.id === recordId ? { ...p, status: newStatus } : p));
     
     try {
@@ -124,9 +165,11 @@ export default function CampaignDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: recordId, status: newStatus }),
       });
+
+      await logActivity('Pipeline Movement', `Moved ${creatorName} to ${newStatus}.`);
     } catch (err) {
       console.error(err);
-      fetchPipeline(); // Revert on failure
+      fetchPipeline(); 
     }
   };
 
@@ -151,6 +194,9 @@ export default function CampaignDetailPage() {
 
       if (!res.ok) throw new Error('Failed to submit content');
       
+      const creatorName = pipeline.find(p => p.id === activeRecordId)?.creators?.name || 'Creator';
+      await logActivity('Content Submitted', `Submitted a ${contentForm.deliverable_type} for ${creatorName}.`);
+
       alert('Content sent to Approval Queue!');
       handleStatusChange(activeRecordId, 'Content Drafted');
       setIsSubmitModalOpen(false);
@@ -178,7 +224,6 @@ export default function CampaignDetailPage() {
   };
 
   const handleCampaignStatusChange = async (newStatus: string) => {
-    // Optimistic UI update for instant visual feedback
     setCampaign({ ...campaign, status: newStatus });
     
     try {
@@ -188,9 +233,11 @@ export default function CampaignDetailPage() {
         body: JSON.stringify({ id: campaignId, status: newStatus }),
       });
       if (!res.ok) throw new Error('Failed to update status');
+
+      await logActivity('Campaign Update', `Changed overall campaign status to ${newStatus}.`);
     } catch (err) {
       alert('Failed to update campaign status');
-      fetchCampaignDetails(); // Revert back if the database fails
+      fetchCampaignDetails(); 
     }
   };
 
@@ -221,7 +268,6 @@ export default function CampaignDetailPage() {
     }
   };
 
-  // --- FILTER LOGIC FOR MODAL ---
   const filteredAvailableCreators = availableCreators.filter(c => {
     const searchLower = creatorSearchTerm.toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(searchLower);
@@ -233,10 +279,10 @@ export default function CampaignDetailPage() {
   if (!campaign) return <div className="p-8 text-red-500 font-medium">Campaign not found.</div>;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-4rem)] relative overflow-hidden">
       
       {/* --- HEADER --- */}
-      <div className="flex items-center justify-between border-b border-zinc-200 pb-4 shrink-0">
+      <div className="flex items-center justify-between border-b border-zinc-200 pb-4 shrink-0 px-1">
         <div>
           <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">
             {campaign.client_brand || 'Brand Campaign'}
@@ -246,7 +292,6 @@ export default function CampaignDetailPage() {
             <span>Budget: ₹{(campaign.budget || 0).toLocaleString()}</span>
             <span>•</span>
             
-            {/* INLINE EDITABLE CAMPAIGN STATUS DROPDOWN */}
             <select
               className={`font-medium outline-none cursor-pointer bg-transparent border-b border-dashed border-zinc-300 pb-0.5 hover:border-zinc-500 transition-colors appearance-none pr-4 relative
                 ${campaign.status === 'Active' ? 'text-green-600' : 
@@ -260,16 +305,21 @@ export default function CampaignDetailPage() {
               <option value="Paused" className="text-zinc-900">Paused</option>
               <option value="Completed" className="text-zinc-900">Completed</option>
             </select>
-            
           </div>
         </div>
         
         <div className="flex items-center space-x-3">
+          {/* NEW: Activity Toggle Button */}
           <Button 
-            variant="outline" 
-            onClick={() => router.push(`/dashboard/campaigns/${campaignId}/edit`)}
-            className="hover:bg-zinc-100"
+            variant="ghost" 
+            onClick={() => setIsActivitySidebarOpen(true)}
+            className="text-zinc-600 hover:bg-zinc-100 flex items-center gap-2"
           >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Activity Logs
+          </Button>
+          
+          <Button variant="outline" onClick={() => router.push(`/dashboard/campaigns/${campaignId}/edit`)} className="hover:bg-zinc-100">
             ⚙️ Edit Settings
           </Button>
           <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={handleDeleteCampaign}>
@@ -284,7 +334,7 @@ export default function CampaignDetailPage() {
       {boardError && <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-md border border-red-200">{boardError}</div>}
 
       {/* --- KANBAN BOARD --- */}
-      <div className="mt-6 flex-1 overflow-hidden flex flex-col">
+      <div className="mt-6 flex-1 overflow-hidden flex flex-col pb-4">
         <div className="flex items-center justify-between mb-4 px-1 shrink-0">
           <h2 className="text-lg font-bold text-zinc-800 tracking-tight">Pipeline Workspace</h2>
           <div className="text-xs text-zinc-500 flex items-center gap-2 font-medium bg-zinc-100 px-3 py-1.5 rounded-full border border-zinc-200">
@@ -293,7 +343,6 @@ export default function CampaignDetailPage() {
           </div>
         </div>
 
-        {/* Scrollable Columns */}
         <div className="flex-1 overflow-x-auto overflow-y-hidden -mx-4 px-4 sm:-mx-8 sm:px-8 snap-x">
           <div className="flex gap-4 h-full">
             
@@ -311,7 +360,6 @@ export default function CampaignDetailPage() {
                     ${draggedRecordId ? 'border-dashed border-zinc-300 bg-zinc-50/80' : 'border-zinc-200 bg-zinc-50/50'}
                   `}
                 >
-                  {/* Column Header with Counter */}
                   <div className="p-3.5 border-b border-zinc-200/60 flex items-center justify-between sticky top-0 bg-zinc-100/80 backdrop-blur-md rounded-t-xl z-10 shrink-0">
                     <h3 className="font-semibold text-zinc-800 text-sm tracking-tight">{stage}</h3>
                     <span className="bg-white border border-zinc-200 text-zinc-600 text-xs font-bold px-2.5 py-0.5 rounded-full shadow-sm">
@@ -319,7 +367,6 @@ export default function CampaignDetailPage() {
                     </span>
                   </div>
 
-                  {/* Column Drop Zone */}
                   <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-0">
                     {stageRecords.map((record) => (
                       <div 
@@ -351,7 +398,6 @@ export default function CampaignDetailPage() {
                             onChange={(e) => handleStatusChange(record.id, e.target.value)}
                           >
                             {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                            
                           </select>
 
                           {(stage === 'Product Sent' || stage === 'Content Drafted') && (
@@ -363,7 +409,6 @@ export default function CampaignDetailPage() {
                               Submit Content
                             </Button>
                           )}
-                          
                         </div>
                       </div>
                     ))}
@@ -382,16 +427,62 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
+      {/* --- NEW: SLIDE-OUT ACTIVITY SIDEBAR --- */}
+      {/* Overlay */}
+      {isActivitySidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity" 
+          onClick={() => setIsActivitySidebarOpen(false)}
+        ></div>
+      )}
+
+      {/* Drawer Panel */}
+      <div className={`fixed inset-y-0 right-0 w-full sm:w-96 bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${isActivitySidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-5 border-b border-zinc-200 flex justify-between items-center bg-zinc-50 shrink-0">
+          <h2 className="text-base font-bold text-zinc-900 flex items-center gap-2">
+            <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Activity & Audit Log
+          </h2>
+          <button 
+            onClick={() => setIsActivitySidebarOpen(false)} 
+            className="text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 p-1.5 rounded transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6 bg-white">
+          {activityLogs.length === 0 ? (
+            <div className="text-sm text-zinc-500 text-center py-10">No activity recorded yet. Start managing your pipeline!</div>
+          ) : (
+            <div className="border-l-2 border-zinc-100 ml-2 pl-5 space-y-6">
+              {activityLogs.map((log) => (
+                <div key={log.id} className="relative">
+                  {/* Timeline Dot */}
+                  <div className="absolute -left-[25px] top-1.5 w-2.5 h-2.5 bg-zinc-400 rounded-full border-2 border-white"></div>
+                  
+                  <div className="text-sm text-zinc-900 font-medium">
+                    {log.details}
+                  </div>
+                  <div className="text-xs text-zinc-400 mt-1 font-medium flex gap-2 items-center">
+                    <span className="bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-600">{log.action_type}</span>
+                    {new Date(log.created_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* --- MODALS --- */}
-      {/* UPGRADED: Searchable Add Creator Modal */}
+      {/* Searchable Add Creator Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-zinc-200 flex flex-col max-h-[90vh]">
             <h2 className="text-xl font-bold mb-4 text-zinc-900 shrink-0">Add Creator to Pipeline</h2>
             
             <div className="flex-1 overflow-hidden flex flex-col space-y-4">
-              
-              {/* Search Bar */}
               <div className="shrink-0">
                 <input 
                   type="text"
@@ -403,7 +494,6 @@ export default function CampaignDetailPage() {
                 />
               </div>
 
-              {/* Scrollable Creator List */}
               <div className="flex-1 overflow-y-auto border border-zinc-200 rounded-lg bg-zinc-50/50 min-h-[200px] max-h-[350px]">
                 {filteredAvailableCreators.length === 0 ? (
                   <div className="p-6 text-center text-sm text-zinc-500">
@@ -436,7 +526,6 @@ export default function CampaignDetailPage() {
                 )}
               </div>
 
-              {/* Actions */}
               <div className="flex space-x-3 pt-2 shrink-0">
                 <Button 
                   onClick={handleAddCreator} 
