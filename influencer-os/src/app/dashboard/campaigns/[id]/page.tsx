@@ -31,7 +31,7 @@ export default function CampaignDetailPage() {
   const [creatorSearchTerm, setCreatorSearchTerm] = useState(''); 
   const [isActivitySidebarOpen, setIsActivitySidebarOpen] = useState(false);
   
-  // --- UPGRADED: Multi-Select State ---
+  // Multi-Select State
   const [selectedCreatorIds, setSelectedCreatorIds] = useState<string[]>([]);
   const [isAddingCreators, setIsAddingCreators] = useState(false);
   
@@ -134,13 +134,12 @@ export default function CampaignDetailPage() {
     }
   };
 
-  // --- UPGRADED: Bulk Add Handler ---
+  // --- HANDLERS ---
   const handleAddCreator = async () => {
     if (selectedCreatorIds.length === 0) return;
     setIsAddingCreators(true);
 
     try {
-      // Process all selected creators simultaneously using Promise.all
       await Promise.all(
         selectedCreatorIds.map(async (creatorId) => {
           const res = await fetch('/api/campaign-creators', {
@@ -155,7 +154,6 @@ export default function CampaignDetailPage() {
         })
       );
 
-      // Clean up modal states after success
       setIsAddModalOpen(false);
       setSelectedCreatorIds([]);
       setCreatorSearchTerm(''); 
@@ -173,7 +171,29 @@ export default function CampaignDetailPage() {
     );
   };
 
-  // --- OTHER HANDLERS ---
+  // --- NEW: Remove Creator Handler ---
+  const handleRemoveCreator = async (recordId: string) => {
+    if (!window.confirm("Remove this creator from the pipeline?")) return;
+
+    const recordToRemove = pipeline.find(p => p.id === recordId);
+    const creatorName = recordToRemove?.creators?.name || 'Creator';
+
+    // Optimistic UI update: instantly hide from the board
+    setPipeline(pipeline.filter(p => p.id !== recordId));
+
+    try {
+      const res = await fetch(`/api/campaign-creators?id=${recordId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to remove creator');
+
+      await logActivity('Creator Removed', `Removed ${creatorName} from the campaign.`);
+    } catch (err) {
+      console.error(err);
+      fetchPipeline(); // Revert board if it fails
+    }
+  };
+
   const handleStatusChange = async (recordId: string, newStatus: string) => {
     const creatorRecord = pipeline.find(p => p.id === recordId);
     const creatorName = creatorRecord?.creators?.name || 'Unknown Creator';
@@ -307,7 +327,6 @@ export default function CampaignDetailPage() {
     }
   };
 
-  // Filter creators not already in the pipeline to avoid duplicates
   const filteredAvailableCreators = availableCreators.filter(c => {
     const isAlreadyInPipeline = pipeline.some(p => p.creators?.id === c.id);
     if (isAlreadyInPipeline) return false;
@@ -374,7 +393,7 @@ export default function CampaignDetailPage() {
             ⚙️ Settings
           </Button>
           <Button onClick={() => setIsAddModalOpen(true)} className="bg-zinc-900 text-white hover:bg-zinc-800">
-            + Add Creator
+            + Add Creators
           </Button>
         </div>
       </div>
@@ -425,8 +444,15 @@ export default function CampaignDetailPage() {
                           ${isCompletionStage ? 'border-l-green-500' : isActionStage ? 'border-l-amber-400' : 'border-l-blue-500'}
                         `}
                       >
-                        <div className="absolute top-3 right-3 text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" /></svg>
+                        {/* UPGRADED: Remove Button in Top Right */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleRemoveCreator(record.id)}
+                            className="text-zinc-400 hover:text-red-600 bg-white hover:bg-red-50 p-1 rounded-md transition-colors"
+                            title="Remove from Campaign"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
                         </div>
 
                         <div className="font-bold text-zinc-900 mb-1 pr-6 truncate">
@@ -557,7 +583,7 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
-      {/* UPGRADED: Multi-Select Add Creator Modal */}
+      {/* Multi-Select Add Creator Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-zinc-200 flex flex-col max-h-[90vh]">
