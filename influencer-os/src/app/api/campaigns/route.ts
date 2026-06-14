@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, name, client_brand, budget, status } = body;
+    const { id, name, client_brand, budget, status, brief } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Campaign ID is required' }, { status: 400 });
@@ -86,6 +86,7 @@ export async function PUT(request: Request) {
     if (client_brand !== undefined) updates.client_brand = client_brand;
     if (budget !== undefined) updates.budget = Number(budget);
     if (status !== undefined) updates.status = status;
+    if (brief !== undefined) updates.brief = brief;
 
     const { data, error } = await supabase
       .from('campaigns')

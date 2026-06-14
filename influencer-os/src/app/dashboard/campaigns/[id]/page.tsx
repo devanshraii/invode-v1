@@ -28,9 +28,18 @@ export default function CampaignDetailPage() {
 
   // Modal & Drawer States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedCreatorId, setSelectedCreatorId] = useState('');
   const [creatorSearchTerm, setCreatorSearchTerm] = useState(''); 
-  const [isActivitySidebarOpen, setIsActivitySidebarOpen] = useState(false); // <-- NEW: Sidebar State
+  const [isActivitySidebarOpen, setIsActivitySidebarOpen] = useState(false);
+  
+  // --- UPGRADED: Multi-Select State ---
+  const [selectedCreatorIds, setSelectedCreatorIds] = useState<string[]>([]);
+  const [isAddingCreators, setIsAddingCreators] = useState(false);
+  
+  // Brief & Content States
+  const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
+  const [isEditingBrief, setIsEditingBrief] = useState(false);
+  const [briefText, setBriefText] = useState('');
+  const [isSavingBrief, setIsSavingBrief] = useState(false);
   
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [activeRecordId, setActiveRecordId] = useState('');
@@ -58,6 +67,7 @@ export default function CampaignDetailPage() {
       if (!res.ok) throw new Error('Failed to fetch campaign details');
       const data = await res.json();
       setCampaign(data.campaign);
+      setBriefText(data.campaign.brief || '');
     } catch (err) {
       console.error(err);
     }
@@ -88,10 +98,7 @@ export default function CampaignDetailPage() {
       if (!userId) return;
 
       const res = await fetch(`/api/creators?userId=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableCreators(data.creators || []);
-      }
+      if (res.ok) setAvailableCreators((await res.json()).creators || []);
     } catch (err) {
       console.error(err);
     }
@@ -104,10 +111,7 @@ export default function CampaignDetailPage() {
       if (!userId) return;
 
       const res = await fetch(`/api/activity?campaignId=${campaignId}&userId=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setActivityLogs(data.logs || []);
-      }
+      if (res.ok) setActivityLogs((await res.json()).logs || []);
     } catch (err) {
       console.error(err);
     }
@@ -130,29 +134,46 @@ export default function CampaignDetailPage() {
     }
   };
 
-  // --- HANDLERS ---
+  // --- UPGRADED: Bulk Add Handler ---
   const handleAddCreator = async () => {
-    if (!selectedCreatorId) return;
-    try {
-      const res = await fetch('/api/campaign-creators', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaign_id: campaignId, creator_id: selectedCreatorId }),
-      });
-      if (!res.ok) throw new Error('Failed to add creator');
-      
-      const creatorName = availableCreators.find(c => c.id === selectedCreatorId)?.name || 'A creator';
-      await logActivity('Creator Added', `Added ${creatorName} to the Shortlist.`);
+    if (selectedCreatorIds.length === 0) return;
+    setIsAddingCreators(true);
 
+    try {
+      // Process all selected creators simultaneously using Promise.all
+      await Promise.all(
+        selectedCreatorIds.map(async (creatorId) => {
+          const res = await fetch('/api/campaign-creators', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ campaign_id: campaignId, creator_id: creatorId }),
+          });
+          if (!res.ok) throw new Error('Failed to add creator');
+          
+          const creatorName = availableCreators.find(c => c.id === creatorId)?.name || 'A creator';
+          await logActivity('Creator Added', `Added ${creatorName} to the Shortlist.`);
+        })
+      );
+
+      // Clean up modal states after success
       setIsAddModalOpen(false);
-      setSelectedCreatorId('');
+      setSelectedCreatorIds([]);
       setCreatorSearchTerm(''); 
       fetchPipeline();
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setIsAddingCreators(false);
     }
   };
 
+  const toggleCreatorSelection = (id: string) => {
+    setSelectedCreatorIds(prev => 
+      prev.includes(id) ? prev.filter(cId => cId !== id) : [...prev, id]
+    );
+  };
+
+  // --- OTHER HANDLERS ---
   const handleStatusChange = async (recordId: string, newStatus: string) => {
     const creatorRecord = pipeline.find(p => p.id === recordId);
     const creatorName = creatorRecord?.creators?.name || 'Unknown Creator';
@@ -225,7 +246,6 @@ export default function CampaignDetailPage() {
 
   const handleCampaignStatusChange = async (newStatus: string) => {
     setCampaign({ ...campaign, status: newStatus });
-    
     try {
       const res = await fetch('/api/campaigns', {
         method: 'PUT',
@@ -233,11 +253,30 @@ export default function CampaignDetailPage() {
         body: JSON.stringify({ id: campaignId, status: newStatus }),
       });
       if (!res.ok) throw new Error('Failed to update status');
-
       await logActivity('Campaign Update', `Changed overall campaign status to ${newStatus}.`);
     } catch (err) {
       alert('Failed to update campaign status');
       fetchCampaignDetails(); 
+    }
+  };
+
+  const handleSaveBrief = async () => {
+    setIsSavingBrief(true);
+    try {
+      const res = await fetch('/api/campaigns', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: campaignId, brief: briefText }),
+      });
+      if (!res.ok) throw new Error('Failed to update brief');
+      
+      setCampaign({ ...campaign, brief: briefText });
+      setIsEditingBrief(false);
+      await logActivity('Brief Updated', 'Updated the campaign brief and deliverables.');
+    } catch (err) {
+      alert('Failed to save brief');
+    } finally {
+      setIsSavingBrief(false);
     }
   };
 
@@ -268,7 +307,11 @@ export default function CampaignDetailPage() {
     }
   };
 
+  // Filter creators not already in the pipeline to avoid duplicates
   const filteredAvailableCreators = availableCreators.filter(c => {
+    const isAlreadyInPipeline = pipeline.some(p => p.creators?.id === c.id);
+    if (isAlreadyInPipeline) return false;
+
     const searchLower = creatorSearchTerm.toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(searchLower);
     const nicheMatch = c.niche_category?.toLowerCase().includes(searchLower);
@@ -309,7 +352,15 @@ export default function CampaignDetailPage() {
         </div>
         
         <div className="flex items-center space-x-3">
-          {/* NEW: Activity Toggle Button */}
+          <Button 
+            variant="ghost" 
+            onClick={() => setIsBriefModalOpen(true)}
+            className="text-zinc-600 hover:bg-zinc-100 flex items-center gap-2"
+          >
+            <span className="text-lg">📄</span>
+            View Brief
+          </Button>
+
           <Button 
             variant="ghost" 
             onClick={() => setIsActivitySidebarOpen(true)}
@@ -319,11 +370,8 @@ export default function CampaignDetailPage() {
             Activity Logs
           </Button>
           
-          <Button variant="outline" onClick={() => router.push(`/dashboard/campaigns/${campaignId}/edit`)} className="hover:bg-zinc-100">
-            ⚙️ Edit Settings
-          </Button>
-          <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={handleDeleteCampaign}>
-            Delete Campaign
+          <Button variant="outline" onClick={() => router.push(`/dashboard/campaigns/${campaignId}/edit`)} className="hover:bg-zinc-100 hidden sm:flex">
+            ⚙️ Settings
           </Button>
           <Button onClick={() => setIsAddModalOpen(true)} className="bg-zinc-900 text-white hover:bg-zinc-800">
             + Add Creator
@@ -345,7 +393,6 @@ export default function CampaignDetailPage() {
 
         <div className="flex-1 overflow-x-auto overflow-y-hidden -mx-4 px-4 sm:-mx-8 sm:px-8 snap-x">
           <div className="flex gap-4 h-full">
-            
             {PIPELINE_STAGES.map((stage) => {
               const stageRecords = pipeline.filter(p => p.status === stage);
               const isCompletionStage = stage === 'Completed' || stage === 'Posted';
@@ -427,26 +474,17 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
-      {/* --- NEW: SLIDE-OUT ACTIVITY SIDEBAR --- */}
-      {/* Overlay */}
+      {/* --- SLIDE-OUT ACTIVITY SIDEBAR --- */}
       {isActivitySidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity" 
-          onClick={() => setIsActivitySidebarOpen(false)}
-        ></div>
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity" onClick={() => setIsActivitySidebarOpen(false)}></div>
       )}
-
-      {/* Drawer Panel */}
       <div className={`fixed inset-y-0 right-0 w-full sm:w-96 bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${isActivitySidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-5 border-b border-zinc-200 flex justify-between items-center bg-zinc-50 shrink-0">
           <h2 className="text-base font-bold text-zinc-900 flex items-center gap-2">
             <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Activity & Audit Log
           </h2>
-          <button 
-            onClick={() => setIsActivitySidebarOpen(false)} 
-            className="text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 p-1.5 rounded transition-colors"
-          >
+          <button onClick={() => setIsActivitySidebarOpen(false)} className="text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 p-1.5 rounded transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -458,12 +496,8 @@ export default function CampaignDetailPage() {
             <div className="border-l-2 border-zinc-100 ml-2 pl-5 space-y-6">
               {activityLogs.map((log) => (
                 <div key={log.id} className="relative">
-                  {/* Timeline Dot */}
                   <div className="absolute -left-[25px] top-1.5 w-2.5 h-2.5 bg-zinc-400 rounded-full border-2 border-white"></div>
-                  
-                  <div className="text-sm text-zinc-900 font-medium">
-                    {log.details}
-                  </div>
+                  <div className="text-sm text-zinc-900 font-medium">{log.details}</div>
                   <div className="text-xs text-zinc-400 mt-1 font-medium flex gap-2 items-center">
                     <span className="bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-600">{log.action_type}</span>
                     {new Date(log.created_at).toLocaleString()}
@@ -476,11 +510,58 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* --- MODALS --- */}
-      {/* Searchable Add Creator Modal */}
+
+      {/* Campaign Brief Modal */}
+      {isBriefModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-0 w-full max-w-2xl border border-zinc-200 flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-5 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-zinc-900 tracking-tight">Campaign Brief & Requirements</h2>
+                <p className="text-sm text-zinc-500 mt-0.5">Reference this document for deliverables, timelines, and talking points.</p>
+              </div>
+              <button onClick={() => setIsBriefModalOpen(false)} className="text-zinc-400 hover:text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-100 p-1.5 rounded-md transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-white min-h-[300px]">
+              {isEditingBrief ? (
+                <textarea 
+                  className="w-full h-full min-h-[300px] p-4 border border-zinc-300 rounded-lg text-sm text-zinc-800 leading-relaxed focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none resize-none font-mono"
+                  placeholder="Paste your Google Doc links, Do's and Don'ts, Target Demographics, and required deliverables here..."
+                  value={briefText}
+                  onChange={(e) => setBriefText(e.target.value)}
+                  autoFocus
+                />
+              ) : (
+                <div className="prose prose-sm max-w-none text-zinc-700 whitespace-pre-wrap leading-relaxed">
+                  {campaign?.brief ? campaign.brief : <span className="text-zinc-400 italic">No brief has been drafted for this campaign yet. Click 'Edit Document' below to start typing.</span>}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-zinc-200 bg-zinc-50 flex justify-end space-x-3 shrink-0">
+              {isEditingBrief ? (
+                <>
+                  <Button variant="outline" onClick={() => setIsEditingBrief(false)}>Cancel</Button>
+                  <Button onClick={handleSaveBrief} disabled={isSavingBrief} className="bg-zinc-900 text-white">
+                    {isSavingBrief ? 'Saving...' : 'Save Document'}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" onClick={() => setIsEditingBrief(true)} className="bg-white">
+                  ✏️ Edit Document
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UPGRADED: Multi-Select Add Creator Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-zinc-200 flex flex-col max-h-[90vh]">
-            <h2 className="text-xl font-bold mb-4 text-zinc-900 shrink-0">Add Creator to Pipeline</h2>
+            <h2 className="text-xl font-bold mb-4 text-zinc-900 shrink-0">Add Creators to Pipeline</h2>
             
             <div className="flex-1 overflow-hidden flex flex-col space-y-4">
               <div className="shrink-0">
@@ -497,49 +578,63 @@ export default function CampaignDetailPage() {
               <div className="flex-1 overflow-y-auto border border-zinc-200 rounded-lg bg-zinc-50/50 min-h-[200px] max-h-[350px]">
                 {filteredAvailableCreators.length === 0 ? (
                   <div className="p-6 text-center text-sm text-zinc-500">
-                    No creators found matching "{creatorSearchTerm}"
+                    {availableCreators.length === 0 ? "No creators in CRM." : "No matching creators available to add."}
                   </div>
                 ) : (
-                  filteredAvailableCreators.map(c => (
-                    <div 
-                      key={c.id}
-                      onClick={() => setSelectedCreatorId(c.id)}
-                      className={`p-3 border-b border-zinc-100 last:border-0 cursor-pointer transition-all flex items-center justify-between
-                        ${selectedCreatorId === c.id 
-                          ? 'bg-zinc-100 border-l-4 border-l-zinc-900' 
-                          : 'bg-white hover:bg-zinc-50 border-l-4 border-l-transparent'}
-                      `}
-                    >
-                      <div>
-                        <div className={`font-medium text-sm ${selectedCreatorId === c.id ? 'text-zinc-900' : 'text-zinc-700'}`}>
-                          {c.name}
-                        </div>
-                        <div className="text-xs text-zinc-500 mt-0.5">
-                          {c.niche_category || 'General'}
+                  filteredAvailableCreators.map(c => {
+                    const isSelected = selectedCreatorIds.includes(c.id);
+                    return (
+                      <div 
+                        key={c.id}
+                        onClick={() => toggleCreatorSelection(c.id)}
+                        className={`p-3 border-b border-zinc-100 last:border-0 cursor-pointer transition-all flex items-center gap-3
+                          ${isSelected ? 'bg-zinc-50/80 border-l-4 border-l-zinc-900' : 'bg-white hover:bg-zinc-50 border-l-4 border-l-transparent'}
+                        `}
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 pointer-events-none"
+                        />
+                        <div className="flex-1 flex justify-between items-center">
+                          <div>
+                            <div className={`font-medium text-sm ${isSelected ? 'text-zinc-900' : 'text-zinc-700'}`}>
+                              {c.name}
+                            </div>
+                            <div className="text-xs text-zinc-500 mt-0.5">
+                              {c.niche_category || 'General'}
+                            </div>
+                          </div>
+                          <div className="text-xs font-medium text-zinc-600 bg-zinc-100 px-2 py-1 rounded">
+                            ₹{(c.pricing || 0).toLocaleString()}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-xs font-medium text-zinc-600 bg-zinc-100 px-2 py-1 rounded">
-                        ₹{(c.pricing || 0).toLocaleString()}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
               <div className="flex space-x-3 pt-2 shrink-0">
                 <Button 
                   onClick={handleAddCreator} 
-                  disabled={!selectedCreatorId}
+                  disabled={selectedCreatorIds.length === 0 || isAddingCreators}
                   className="flex-1 bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50"
                 >
-                  Add to Shortlist
+                  {isAddingCreators 
+                    ? 'Adding...' 
+                    : selectedCreatorIds.length > 0 
+                      ? `Add ${selectedCreatorIds.length} to Shortlist` 
+                      : 'Add to Shortlist'
+                  }
                 </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => {
                     setIsAddModalOpen(false);
                     setCreatorSearchTerm(''); 
-                    setSelectedCreatorId(''); 
+                    setSelectedCreatorIds([]); 
                   }} 
                   className="flex-1"
                 >
@@ -547,7 +642,6 @@ export default function CampaignDetailPage() {
                 </Button>
               </div>
             </div>
-            
           </div>
         </div>
       )}

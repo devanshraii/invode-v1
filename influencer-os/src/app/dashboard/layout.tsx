@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/library/supabase';
+import { CommandPalette } from '@/app/components/CommandPalette'; // <-- NEW: Import
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -88,25 +89,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    // FIX 1: Changed min-h-screen to exactly h-screen
-    <div className="h-screen w-full bg-zinc-50 flex flex-col md:flex-row overflow-hidden">
+    <div className="h-screen w-full bg-zinc-50 flex flex-col md:flex-row overflow-hidden relative">
       
+      {/* --- NEW: Global Command Palette Component --- */}
+      <CommandPalette />
+
       {/* Mobile Top Bar */}
-      {/* FIX 2: Added shrink-0 so it never collapses vertically */}
       <div className="md:hidden flex items-center justify-between bg-zinc-900 text-white p-4 z-50 shadow-md shrink-0">
         <div className="font-bold text-lg tracking-tight">Campaign<span className="text-zinc-400">OS</span></div>
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 focus:outline-none"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {isMobileMenuOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
+        <div className="flex items-center space-x-2">
+          
+          {/* NEW: Mobile Search Icon */}
+          <button 
+            onClick={() => window.dispatchEvent(new Event('open-command-palette'))}
+            className="p-2 text-zinc-400 hover:text-white focus:outline-none transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>
+            </svg>
+          </button>
+
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 focus:outline-none"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {isMobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Collapsible Sidebar Navigation */}
@@ -138,9 +153,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </svg>
           </button>
         </div>
+
+        {/* --- NEW: VISIBLE DESKTOP SEARCH BAR --- */}
+        <div className="px-3 pt-5 pb-1 hidden md:block shrink-0">
+          <button
+            onClick={() => window.dispatchEvent(new Event('open-command-palette'))}
+            title={isCollapsed ? "Search (Cmd+K)" : ""}
+            className={`w-full flex items-center bg-zinc-800/80 text-zinc-400 rounded-lg border border-zinc-700/50 hover:bg-zinc-700 hover:text-zinc-200 hover:border-zinc-600 transition-all ${
+              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 text-sm'
+            }`}
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>
+            </svg>
+            {!isCollapsed && <span className="ml-3 truncate flex-1 text-left font-medium">Search...</span>}
+            {!isCollapsed && <span className="ml-auto text-[10px] font-bold text-zinc-500 bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 tracking-widest">⌘K</span>}
+          </button>
+        </div>
         
         {/* Navigation Links */}
-        <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto overflow-x-hidden">
           {navigation.map((item) => {
             const isActive = pathname.includes(item.href);
             return (
@@ -184,7 +216,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Main Content Area */}
-      {/* FIX 3: Added overflow-y-auto directly to the main canvas */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-zinc-50 relative">
         <div className="max-w-[1600px] mx-auto h-full">
           {children}

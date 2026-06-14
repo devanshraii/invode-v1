@@ -77,24 +77,27 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, status } = body;
+    const { id, status, views, likes, comments } = body;
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'Record ID and new status are required' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: 'Record ID required' }, { status: 400 });
+
+    // Build dynamic update payload
+    const updates: any = {};
+    if (status !== undefined) updates.status = status;
+    if (views !== undefined) updates.views = Number(views);
+    if (likes !== undefined) updates.likes = Number(likes);
+    if (comments !== undefined) updates.comments = Number(comments);
 
     const { data, error } = await supabase
       .from('campaign_creators')
-      .update({ status })
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-
     return NextResponse.json({ record: data }, { status: 200 });
   } catch (error: any) {
-    console.error('Error updating status:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
